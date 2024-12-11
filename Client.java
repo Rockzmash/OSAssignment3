@@ -16,15 +16,10 @@ public class Client {
  
         try (
             Socket socket = new Socket(hostName, portNumber);
-            PrintWriter out =
-                new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in =
-                new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()));
-            BufferedReader stdIn =
-                new BufferedReader(
-                    new InputStreamReader(System.in))
-        ) {
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            Scanner scanner = new Scanner(System.in) )
+            {
             while (true) {
                 System.out.println("Enter a command (show or update i j num), or type 'exit' to quit:");
                 String userInput = scanner.nextLine();
