@@ -5,6 +5,9 @@ import java.util.*;
 public class Server {
     private static final List<ClientHandler> clients = new ArrayList<ClientHandler>();
     private static Sudoku sudoku = new Sudoku();
+    private static int clientIdCounter = 1;
+    private static Map<Integer, Integer> clientUpdateCounts = new HashMap<>();
+    private static Map<String, Integer> boardUpdates = new HashMap<>();
 
     public static void main(String[] args) throws IOException {
         if (args.length != 1) {
@@ -24,6 +27,8 @@ public class Server {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New Client Connection");
+                int clientId = clientIdCounter++;
+                clientUpdateCounts.put(clientId, 0);
                 ClientHandler clientHandler = new ClientHandler(clientSocket);
                 clients.add(clientHandler);
                 new Thread(clientHandler).start();
@@ -48,10 +53,19 @@ public class Server {
     }
 
     static boolean handleUpdate(int i, int j, int n) {
+        String key = i + "-" + j;
         if (sudoku.enterNumber(i, j, n)) {
+
+            if(boardUpdates.containsKey(key)) {
+                int previousClientId = boardUpdates.get(key);
+                clientUpdateCounts.put(previousClientId, clientUpdateCounts.get(previousClientId) - 1);
+            }
+            boardUpdates.put(key, clientId);
+            clientUpdateCounts.put(clientId, clientUpdateCounts.get(clientId) + 1);
+
             broadcast("Board Updated:\n" + sudoku.getSudokuString());
             if (sudoku.isBoardFull()) {
-                broadcast("Game Complete! Final Board:\n" + sudoku.getSudokuString());
+                announceWinner();
                 System.exit(0);
             }
             return true;
@@ -59,21 +73,39 @@ public class Server {
         return false;
     }
 
+    static void announceWinner() {
+        int maxUpdates = 0;
+        int winnerId = -1;
+
+        for(Map.Entry<Integer, Integer> entry : clientUpdateCounts.entrySet()) {
+            if (entry.getValue() > maxUpdates) {
+                maxUpdates = entry.getValue();
+                winnerId = entry.getKey();
+            }
+        }
+
+        if(winnerId != -1) {
+            broadcast("Game Complete! The winner is Client " + winnerId + " with " + maxUpdates + " updates.");
+        } else {
+            broadcast("Game Complete! No winner determined.");
+        }
+    }
+
     private static class ClientHandler implements Runnable {
         private final Socket socket;
+        private final int clientId;
         private PrintWriter out;
 
-        public ClientHandler(Socket socket) {
+        public ClientHandler(Socket socket, int clientId) {
             this.socket = socket;
+            this.clientId = clientId;
         }
 
         @Override
         public void run() {
-            try (
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            ) {
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                 out = new PrintWriter(socket.getOutputStream(), true);
-                out.println("Welcome to the Sudoku server!");
+                out.println("Welcome to the Sudoku server! Your client ID is " + clientId);
                 out.println("Current Sudoku board:\n" + sudoku.getSudokuString());
 
                 String inputLine;
